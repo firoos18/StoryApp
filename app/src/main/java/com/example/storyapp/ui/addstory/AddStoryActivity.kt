@@ -7,11 +7,14 @@ import android.content.Intent
 import android.content.SharedPreferences
 import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
+import android.location.Location
 import android.net.Uri
 import androidx.appcompat.app.AppCompatActivity
 import android.os.Bundle
 import android.provider.MediaStore
+import android.util.Log
 import android.view.View
+import android.widget.Switch
 import android.widget.Toast
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.app.ActivityCompat
@@ -27,6 +30,8 @@ import com.example.storyapp.databinding.ActivityAddStoryBinding
 import com.example.storyapp.ui.detail.StoryDetailViewModel
 import com.example.storyapp.utils.reduceFileImage
 import com.example.storyapp.utils.uriToFile
+import com.google.android.gms.location.FusedLocationProviderClient
+import com.google.android.gms.location.LocationServices
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.MultipartBody
 import okhttp3.RequestBody
@@ -40,6 +45,9 @@ import java.io.File
 class AddStoryActivity : AppCompatActivity() {
     private lateinit var binding: ActivityAddStoryBinding
     private lateinit var currentPhotoPath: String
+    private lateinit var fusedLocationClient: FusedLocationProviderClient
+    private var lat : Float = 0f
+    private var long : Float = 0f
     private var getFile : File? = null
 
     companion object {
@@ -69,9 +77,13 @@ class AddStoryActivity : AppCompatActivity() {
         val actionBar = supportActionBar
         actionBar!!.title = "Post Story"
 
+        fusedLocationClient = LocationServices.getFusedLocationProviderClient(this)
+
         binding.btnCamera.setOnClickListener { startCamera() }
         binding.btnGallery.setOnClickListener { openGallery() }
-        binding.btnAdd.setOnClickListener { uploadStory() }
+        binding.btnAdd.setOnClickListener {
+            if (long != 0f && lat != 0f) uploadStoryWithLocation() else uploadStory()
+        }
 
         if (!allPermissionsGranted()) {
             ActivityCompat.requestPermissions(
@@ -80,7 +92,64 @@ class AddStoryActivity : AppCompatActivity() {
                 REQUEST_CODE_PERMISSIONS
             )
         }
+
+        binding.locationSwitch.setOnCheckedChangeListener { _, isChecked ->
+            if (isChecked) getMyLocation()
+        }
     }
+
+    private fun getMyLocation() {
+        if     (checkPermission(Manifest.permission.ACCESS_FINE_LOCATION) &&
+            checkPermission(Manifest.permission.ACCESS_COARSE_LOCATION)
+        ){
+            fusedLocationClient.lastLocation.addOnSuccessListener { location: Location? ->
+                if (location != null) {
+                    lat = location.latitude.toFloat()
+                    long = location.longitude.toFloat()
+                    Log.d("MYLOC", "lat : ${location.latitude.toString()}, long : ${location.longitude.toString()}")
+                } else {
+                    Toast.makeText(
+                        this@AddStoryActivity,
+                        "Location is not found. Try Again",
+                        Toast.LENGTH_SHORT
+                    ).show()
+                }
+            }
+        } else {
+            requestPermissionLauncher.launch(
+                arrayOf(
+                    Manifest.permission.ACCESS_FINE_LOCATION,
+                    Manifest.permission.ACCESS_COARSE_LOCATION
+                )
+            )
+        }
+    }
+
+    private fun checkPermission(permission: String): Boolean {
+        return ContextCompat.checkSelfPermission(
+            this,
+            permission
+        ) == PackageManager.PERMISSION_GRANTED
+    }
+
+    private val requestPermissionLauncher =
+        registerForActivityResult(
+            ActivityResultContracts.RequestMultiplePermissions()
+        ) { permissions ->
+            when {
+                permissions[Manifest.permission.ACCESS_FINE_LOCATION] ?: false -> {
+                    // Precise location access granted.
+                    getMyLocation()
+                }
+                permissions[Manifest.permission.ACCESS_COARSE_LOCATION] ?: false -> {
+                    // Only approximate location access granted.
+                    getMyLocation()
+                }
+                else -> {
+                    // No location access granted.
+                }
+            }
+        }
 
     private fun uploadStory() {
         showLoading(true)
@@ -96,6 +165,25 @@ class AddStoryActivity : AppCompatActivity() {
             )
 
             postStory(imageMultipart, description)
+        }
+    }
+
+    private fun uploadStoryWithLocation() {
+        showLoading(true)
+        if (getFile != null) {
+            val file = reduceFileImage(getFile as File)
+
+            val description = binding.edAddDescription.text.toString().toRequestBody("text/plain".toMediaType())
+            val lat = lat
+            val long = long
+            val requestImageFile = file.asRequestBody("image/jpeg".toMediaType())
+            val imageMultipart : MultipartBody.Part = MultipartBody.Part.createFormData(
+                "photo",
+                file.name,
+                requestImageFile
+            )
+
+            postStoryWithLocation(imageMultipart, description, lat, long)
         }
     }
 
@@ -150,6 +238,32 @@ class AddStoryActivity : AppCompatActivity() {
 
     private fun postStory(file : MultipartBody.Part, description : RequestBody) {
         val client = ApiConfig().getApiService().postStory(file, description)
+        client.enqueue(object : Callback<PostStoryResponse> {
+            override fun onResponse(call: Call<PostStoryResponse>, response: Response<PostStoryResponse>) {
+                if (response.isSuccessful) {
+                    val responseBody = response.body()
+                    if (responseBody != null && !responseBody.error) {
+                        showLoading(false)
+                        Toast.makeText(this@AddStoryActivity, responseBody.message, Toast.LENGTH_SHORT).show()
+                        val intent = Intent(this@AddStoryActivity, MainActivity::class.java)
+                        startActivity(intent)
+                    }
+                } else {
+                    showLoading(false)
+                    Toast.makeText(this@AddStoryActivity, response.message(), Toast.LENGTH_SHORT).show()
+                }
+            }
+
+            override fun onFailure(call: Call<PostStoryResponse>, t: Throwable) {
+                showLoading(false)
+                Toast.makeText(this@AddStoryActivity, "Gagal instance Retrofit", Toast.LENGTH_SHORT).show()
+            }
+
+        })
+    }
+
+    private fun postStoryWithLocation(file : MultipartBody.Part, description : RequestBody, lat : Float, long: Float) {
+        val client = ApiConfig().getApiService().postStoryWithLocation(file, description, lat, long)
         client.enqueue(object : Callback<PostStoryResponse> {
             override fun onResponse(call: Call<PostStoryResponse>, response: Response<PostStoryResponse>) {
                 if (response.isSuccessful) {

@@ -29,6 +29,7 @@ interface ApiService {
     fun getAllStoriesWithLocation(
 //        @Header("Authorization") token : String,
         @Query("location") location : Int,
+        @Query("size") size : Int
     ) : Call<StoriesResponse>
 
     @GET("v1/stories/{id}")
@@ -43,6 +44,16 @@ interface ApiService {
 //        @Header("Authorization") token : String,
         @Part file : MultipartBody.Part,
         @Part("description") description : RequestBody,
+    ) : Call<PostStoryResponse>
+
+    @Multipart
+    @POST("v1/stories")
+    fun postStoryWithLocation(
+//        @Header("Authorization") token : String,
+        @Part file : MultipartBody.Part,
+        @Part("description") description : RequestBody,
+        @Part("lat") lat : Float,
+        @Part("lon") long : Float
     ) : Call<PostStoryResponse>
 
     @GET("v1/stories?")

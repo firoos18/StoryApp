@@ -21,7 +21,7 @@ class StoryLocationsViewModel : ViewModel() {
     }
 
     fun getAllStories(token : String) {
-        val client = ApiConfig().getApiService().getAllStoriesWithLocation(1)
+        val client = ApiConfig().getApiService().getAllStoriesWithLocation(1, 50)
         client.enqueue(object : Callback<StoriesResponse> {
             override fun onResponse(call: Call<StoriesResponse>, response: Response<StoriesResponse>) {
                 if (response.isSuccessful) {

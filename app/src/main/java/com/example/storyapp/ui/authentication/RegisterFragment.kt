@@ -41,13 +41,18 @@ class RegisterFragment : Fragment() {
             val fragmentManager = parentFragmentManager
             fragmentManager.beginTransaction().apply {
                 replace(R.id.authenticationFragment, loginFragment, LoginFragment::class.java.simpleName)
-                addToBackStack(null)
+                disallowAddToBackStack()
                 commit()
             }
         }
 
         binding.btnRegister.setOnClickListener {
-            register()
+            val passwordText : String = binding.edRegisterPassword.text.toString()
+            if (passwordText.length < 8) {
+                Toast.makeText(requireActivity(), "Password minimal 8 karakter!", Toast.LENGTH_SHORT).show()
+            } else {
+                register()
+            }
         }
     }
 
@@ -71,7 +76,7 @@ class RegisterFragment : Fragment() {
                         val fragmentManager = parentFragmentManager
                         fragmentManager.beginTransaction().apply {
                             replace(R.id.authenticationFragment, loginFragment, LoginFragment::class.java.simpleName)
-                            addToBackStack(null)
+                            disallowAddToBackStack()
                             commit()
                         }
                     }

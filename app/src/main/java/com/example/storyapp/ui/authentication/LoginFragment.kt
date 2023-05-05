@@ -49,13 +49,18 @@ class LoginFragment : Fragment() {
             val fragmentManager = parentFragmentManager
             fragmentManager.beginTransaction().apply {
                 replace(R.id.authenticationFragment, registerFragment, RegisterFragment::class.java.simpleName)
-                addToBackStack(null)
+                disallowAddToBackStack()
                 commit()
             }
         }
 
         binding.btnLogin.setOnClickListener {
-            login()
+            val passwordText : String = binding.edLoginPassword.text.toString()
+            if (passwordText.length < 8) {
+                Toast.makeText(requireActivity(), "Password minimal 8 karakter!", Toast.LENGTH_SHORT).show()
+            } else {
+                login()
+            }
         }
     }
 
